@@ -139,9 +139,6 @@ function preProcessEditorMarkdown(
   notePath?: NotePath,
 ): PreprocessedMarkdown {
   const withDurableBlocks = preProcessDurableEditorMarkdown({ markdown })
-  // ponytail: normalize bare image paths to `./...` so the rich editor parses
-  // them as images. `attachments/foo.png` and `./attachments/foo.png` are
-  // equivalent in standard markdown; Obsidian-style notes use the bare form.
   const withBareImages = normalizeBareImageUrls(withDurableBlocks)
   const withImages = vaultPath ? resolveImageUrls(withBareImages, vaultPath, notePath) : withBareImages
   const withWikilinks = preProcessWikilinks(withImages)

@@ -345,10 +345,6 @@ describe('resolveImageUrls / portableImageUrls round-trip', () => {
 })
 
 describe('full preprocessor pipeline (normalizeBareImageUrls → resolveImageUrls)', () => {
-  // Regression for issue #956: bare `attachments/foo.png` in a subdirectory note
-  // must resolve to vault-root, not note-relative. The preprocessor adds `./`
-  // so BlockNote parses the image; the resolver must treat `./attachments/...`
-  // as the same vault-root portable form as `attachments/...`.
   it('preserves vault-root semantics for bare attachments paths in subfolder notes', () => {
     tauriMode = true
     const notePath = '/vault/projects/notes/plan.md'
