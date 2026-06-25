@@ -389,6 +389,12 @@ describe('normalizeBareImageUrls', () => {
     expect(normalizeBareImageUrls('![alt](C:\\Users\\john\\photo.jpg)')).toBe(
       '![alt](C:\\Users\\john\\photo.jpg)',
     )
+    expect(normalizeBareImageUrls('![alt](\\\\server\\share\\photo.jpg)')).toBe(
+      '![alt](\\\\server\\share\\photo.jpg)',
+    )
+    expect(normalizeBareImageUrls('![alt](\\attachments\\photo.jpg)')).toBe(
+      '![alt](\\attachments\\photo.jpg)',
+    )
   })
 
   it('preserves query and fragment URLs', () => {

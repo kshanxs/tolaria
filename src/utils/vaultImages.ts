@@ -280,9 +280,11 @@ function hasUrlScheme(request: UrlOnlyRequest): boolean {
 
 function isBareImageUrl(request: UrlOnlyRequest): boolean {
   const { url } = request
+  if (!url) return false
   if (url.startsWith('./') || url.startsWith('../')) return false
-  if (url.startsWith('/')) return false
+  if (url.startsWith('/') || url.startsWith('\\')) return false
   if (url.startsWith('?') || url.startsWith('#')) return false
+  if (isFilesystemAbsolutePath({ path: url })) return false
   if (hasUrlScheme(request)) return false
   return true
 }
