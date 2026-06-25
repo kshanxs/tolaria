@@ -3,7 +3,7 @@ import { preProcessWikilinks, injectWikilinks } from '../utils/wikilinks'
 import { preProcessMathMarkdown, injectMathInBlocks } from '../utils/mathMarkdown'
 import { injectDurableEditorMarkdownBlocks, preProcessDurableEditorMarkdown } from '../utils/editorDurableMarkdown'
 import { injectMarkdownHighlightsInBlocks } from '../utils/markdownHighlightMarkdown'
-import { resolveImageUrls } from '../utils/vaultImages'
+import { resolveImageUrls, normalizeBareImageUrls } from '../utils/vaultImages'
 import { repairMalformedEditorBlocks } from './editorBlockRepair'
 import { inferCodeBlockLanguages } from '../utils/codeBlockLanguage'
 import {
@@ -139,7 +139,11 @@ function preProcessEditorMarkdown(
   notePath?: NotePath,
 ): PreprocessedMarkdown {
   const withDurableBlocks = preProcessDurableEditorMarkdown({ markdown })
-  const withImages = vaultPath ? resolveImageUrls(withDurableBlocks, vaultPath, notePath) : withDurableBlocks
+  // ponytail: normalize bare image paths to `./...` so the rich editor parses
+  // them as images. `attachments/foo.png` and `./attachments/foo.png` are
+  // equivalent in standard markdown; Obsidian-style notes use the bare form.
+  const withBareImages = normalizeBareImageUrls(withDurableBlocks)
+  const withImages = vaultPath ? resolveImageUrls(withBareImages, vaultPath, notePath) : withBareImages
   const withWikilinks = preProcessWikilinks(withImages)
   return preProcessMathMarkdown({ markdown: withWikilinks })
 }

@@ -11,6 +11,7 @@ const ASSET_URL_PREFIXES = [
 ]
 const ATTACHMENTS_SEGMENT = '/attachments/'
 const RELATIVE_ATTACHMENTS_PREFIX = 'attachments/'
+const RELATIVE_ATTACHMENTS_PREFIX_DOT = './attachments/'
 const WINDOWS_EXTENDED_PATH_PREFIX = '\\\\?\\'
 const WINDOWS_EXTENDED_UNC_PREFIX = '\\\\?\\UNC\\'
 const WINDOWS_DRIVE_PATH_PATTERN = /^[A-Za-z]:[\\/]/
@@ -151,9 +152,12 @@ function resolveRelativeAttachmentPath({
   url,
   vaultPath,
 }: UrlRequest & VaultPathRequest): AbsolutePath | null {
-  if (!url.startsWith(RELATIVE_ATTACHMENTS_PREFIX)) return null
-
-  const attachmentPath = safeDecode(url)
+  const attachmentPath = safeDecode(
+    url.startsWith(RELATIVE_ATTACHMENTS_PREFIX_DOT)
+      ? url.slice(2)
+      : url,
+  )
+  if (!attachmentPath.startsWith(RELATIVE_ATTACHMENTS_PREFIX)) return null
   if (hasUnsafeRelativeSegment({ path: attachmentPath })) return null
   return vaultAttachmentPath({ vaultPath, attachmentPath })
 }
@@ -183,6 +187,7 @@ export function vaultAttachmentAssetUrl({
 
 export function isPortableAttachmentPath({ path }: PathRequest): boolean {
   return path.startsWith(RELATIVE_ATTACHMENTS_PREFIX)
+    || path.startsWith(RELATIVE_ATTACHMENTS_PREFIX_DOT)
 }
 
 export function isTauriAssetUrl({ url }: UrlRequest): boolean {

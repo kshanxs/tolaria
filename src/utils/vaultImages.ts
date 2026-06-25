@@ -9,6 +9,7 @@ import {
   portableAttachmentPathFromCurrentVaultAssetUrl,
   vaultAttachmentAssetUrl,
 } from './vaultAttachments'
+import { advanceMarkdownFence, type MarkdownFence } from './markdownFences'
 
 type Markdown = string
 type VaultPath = string
@@ -277,6 +278,15 @@ function hasUrlScheme(request: UrlOnlyRequest): boolean {
   return URL_SCHEME_PATTERN.test(request.url)
 }
 
+function isBareImageUrl(request: UrlOnlyRequest): boolean {
+  const { url } = request
+  if (url.startsWith('./') || url.startsWith('../')) return false
+  if (url.startsWith('/')) return false
+  if (url.startsWith('?') || url.startsWith('#')) return false
+  if (hasUrlScheme(request)) return false
+  return true
+}
+
 function isFilesystemAbsolutePath(request: PathOnlyRequest): boolean {
   return request.path.startsWith('/')
     || WINDOWS_DRIVE_PATH_PATTERN.test(request.path)
@@ -396,7 +406,9 @@ function relativePathFromNoteDirectory(request: NoteDirectoryRelativePathRequest
 function resolvePortableAttachmentUrl(request: ImageUrlRequest): MarkdownImageUrl | null {
   const { url, vaultPath } = request
   if (!isPortableAttachmentPath({ path: url })) return null
-  return vaultAttachmentAssetUrl({ vaultPath, attachmentPath: decodePathUrl({ url }) })
+  const decoded = decodePathUrl({ url })
+  const attachmentPath = decoded.startsWith('./') ? decoded.slice(2) : decoded
+  return vaultAttachmentAssetUrl({ vaultPath, attachmentPath })
 }
 
 function resolveLegacyAttachmentAssetUrl(request: ImageUrlRequest): MarkdownImageUrl | null {
@@ -473,4 +485,20 @@ export function portableImageUrls(
   if (!vaultPath) return markdown
 
   return rewriteMarkdownImages(markdown, url => portableImageUrl({ url, vaultPath, notePath }))
+}
+
+export function normalizeBareImageUrls(markdown: Markdown): Markdown {
+  if (markdown.indexOf('![') === -1) return markdown
+
+  const lines = markdown.split('\n')
+  let fence: MarkdownFence | null = null
+  let fenceChanged = false
+  const rewritten = lines.map((line) => {
+    const nextFence = advanceMarkdownFence(line, fence)
+    fenceChanged = nextFence !== fence
+    fence = nextFence
+    if (fenceChanged || fence !== null) return line
+    return rewriteMarkdownImages(line, url => isBareImageUrl({ url }) ? `./${url}` : null)
+  })
+  return rewritten.join('\n')
 }

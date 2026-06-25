@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { resolveImageUrls, portableImageUrls } from './vaultImages'
+import { resolveImageUrls, portableImageUrls, normalizeBareImageUrls } from './vaultImages'
 
 let tauriMode = false
 
@@ -148,7 +148,7 @@ describe('resolveImageUrls', () => {
       `![shot](${assetUrl('/vault/attachments/shot.png')})`,
     )
     expect(resolveImageUrls('![shot](./attachments/shot.png)', '/vault', notePath)).toBe(
-      `![shot](${assetUrl('/vault/projects/notes/attachments/shot.png')})`,
+      `![shot](${assetUrl('/vault/attachments/shot.png')})`,
     )
   })
 
@@ -341,5 +341,118 @@ describe('resolveImageUrls / portableImageUrls round-trip', () => {
     expect(
       portableImageUrls(resolveImageUrls(markdown, '/vault', notePath), '/vault', notePath),
     ).toBe(markdown)
+  })
+})
+
+describe('full preprocessor pipeline (normalizeBareImageUrls → resolveImageUrls)', () => {
+  // Regression for issue #956: bare `attachments/foo.png` in a subdirectory note
+  // must resolve to vault-root, not note-relative. The preprocessor adds `./`
+  // so BlockNote parses the image; the resolver must treat `./attachments/...`
+  // as the same vault-root portable form as `attachments/...`.
+  it('preserves vault-root semantics for bare attachments paths in subfolder notes', () => {
+    tauriMode = true
+    const notePath = '/vault/projects/notes/plan.md'
+    const markdown = '![shot](attachments/shot.png)'
+
+    const result = resolveImageUrls(normalizeBareImageUrls(markdown), '/vault', notePath)
+
+    expect(result).toBe(`![shot](${assetUrl('/vault/attachments/shot.png')})`)
+  })
+})
+
+describe('normalizeBareImageUrls', () => {
+  it('adds ./ to bare relative attachment paths', () => {
+    expect(normalizeBareImageUrls('![alt](attachments/photo.jpg)')).toBe(
+      '![alt](./attachments/photo.jpg)',
+    )
+  })
+
+  it('adds ./ to nested relative paths', () => {
+    expect(normalizeBareImageUrls('![alt](images/photo.jpg)')).toBe(
+      '![alt](./images/photo.jpg)',
+    )
+  })
+
+  it('preserves already-prefixed relative paths', () => {
+    expect(normalizeBareImageUrls('![alt](./attachments/photo.jpg)')).toBe(
+      '![alt](./attachments/photo.jpg)',
+    )
+    expect(normalizeBareImageUrls('![alt](../shared/Architecture.png)')).toBe(
+      '![alt](../shared/Architecture.png)',
+    )
+  })
+
+  it('preserves absolute filesystem paths', () => {
+    expect(normalizeBareImageUrls('![alt](/Users/john/photo.jpg)')).toBe(
+      '![alt](/Users/john/photo.jpg)',
+    )
+    expect(normalizeBareImageUrls('![alt](C:\\Users\\john\\photo.jpg)')).toBe(
+      '![alt](C:\\Users\\john\\photo.jpg)',
+    )
+  })
+
+  it('preserves query and fragment URLs', () => {
+    expect(normalizeBareImageUrls('![diagram](#fig-1)')).toBe('![diagram](#fig-1)')
+    expect(normalizeBareImageUrls('![icon](?cache=1)')).toBe('![icon](?cache=1)')
+  })
+
+  it('preserves http and https URLs', () => {
+    expect(normalizeBareImageUrls('![alt](https://example.com/photo.jpg)')).toBe(
+      '![alt](https://example.com/photo.jpg)',
+    )
+    expect(normalizeBareImageUrls('![alt](http://example.com/photo.jpg)')).toBe(
+      '![alt](http://example.com/photo.jpg)',
+    )
+  })
+
+  it('preserves asset: URLs', () => {
+    expect(normalizeBareImageUrls('![alt](asset://localhost/vault/photo.jpg)')).toBe(
+      '![alt](asset://localhost/vault/photo.jpg)',
+    )
+    expect(normalizeBareImageUrls('![alt](http://asset.localhost/vault/photo.jpg)')).toBe(
+      '![alt](http://asset.localhost/vault/photo.jpg)',
+    )
+  })
+
+  it('preserves data: URLs', () => {
+    expect(normalizeBareImageUrls('![alt](data:image/png;base64,abc123)')).toBe(
+      '![alt](data:image/png;base64,abc123)',
+    )
+  })
+
+  it('preserves title attributes', () => {
+    expect(normalizeBareImageUrls('![alt](attachments/photo.jpg "my photo")')).toBe(
+      '![alt](./attachments/photo.jpg "my photo")',
+    )
+  })
+
+  it('handles multiple images in one document', () => {
+    const input = '![a](attachments/a.png)\n\n![b](./attachments/b.png)\n\n![c](https://x.com/c.png)'
+    const expected = '![a](./attachments/a.png)\n\n![b](./attachments/b.png)\n\n![c](https://x.com/c.png)'
+
+    expect(normalizeBareImageUrls(input)).toBe(expected)
+  })
+
+  it('leaves non-image markdown untouched', () => {
+    expect(normalizeBareImageUrls('See [link](attachments/file.pdf) for details')).toBe(
+      'See [link](attachments/file.pdf) for details',
+    )
+  })
+
+  it('returns empty string for empty input', () => {
+    expect(normalizeBareImageUrls('')).toBe('')
+  })
+
+  it('skips image markdown inside fenced code blocks', () => {
+    const input = '```\n![alt](attachments/code-sample.png)\n```\n\n![alt](attachments/real.png)'
+    const expected = '```\n![alt](attachments/code-sample.png)\n```\n\n![alt](./attachments/real.png)'
+
+    expect(normalizeBareImageUrls(input)).toBe(expected)
+  })
+
+  it('returns input unchanged when no images are present', () => {
+    const input = 'Plain text with no images.\n\nAnother paragraph.'
+
+    expect(normalizeBareImageUrls(input)).toBe(input)
   })
 })
